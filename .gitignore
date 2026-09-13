@@ -1,0 +1,5 @@
+id="r9n0r1"
+security/keys/
+database/chat.db
+__pycache__/
+*.pyc
