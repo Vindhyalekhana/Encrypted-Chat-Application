@@ -1,5 +1,14 @@
-id="r9n0r1"
-security/keys/
-database/chat.db
+# Python cache and compiled files
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Local databases
+database/*.db
+
+# Local RSA keys
+security/keys/*.pem
+
+# Local backup files
+gui/app_backup.py

@@ -1,687 +1,930 @@
 # Encrypted Chat Application
 
-## 1. Project Overview
+A Python-based encrypted chat application designed for a Cryptography
+and Network Security project. The application combines authenticated
+user accounts, RSA public-key management, hybrid encryption using
+AES-256-GCM and RSA-OAEP, TCP socket communication, and encrypted local
+message history.
 
-The Encrypted Chat Application is a client-server based secure messaging system developed using Python.
+Security model: This project implements a client-side encrypted,
+server-routed chat system. The server authenticates users and routes
+encrypted message data, while message encryption and decryption take
+place on the clients. Public keys are currently distributed through
+the authenticated server, so this implementation should not be
+described as a fully verified end-to-end encrypted system.
 
-The application combines:
+## Overview
 
-- AES-256-GCM for message encryption
-- RSA-3072 with OAEP for protecting AES session keys
-- TCP sockets for network communication
-- SQLite for user account storage
-- PBKDF2-HMAC-SHA256 for password hashing
-- Tkinter for the graphical user interface
-- Length-prefixed JSON messages for reliable TCP framing
+The application allows registered users to communicate through a TCP
+client-server architecture.
 
-The main objective is to demonstrate how symmetric encryption, asymmetric encryption, authentication, and network communication can be combined to build a secure chat application.
+The main security workflow is:
 
----
+1. A user authenticates with the server.
+2. Each user has an RSA-3072 public/private key pair.
+3. The sender obtains the recipient's public key through the
+   authenticated server.
+4. The sender generates a fresh AES-256 session key for each message.
+5. The message is encrypted using AES-256-GCM.
+6. The AES session key is encrypted using the recipient's RSA-3072
+   public key with RSA-OAEP and SHA-256.
+7. The server receives and routes the encrypted message without needing
+   the plaintext.
+8. The recipient uses their RSA private key to recover the AES session
+   key.
+9. AES-256-GCM decrypts and authenticates the message.
+10. The decrypted message is displayed in the recipient's GUI and stored
+    in encrypted local history.
 
-## 2. Objectives
+The project was developed as a practical demonstration of cryptography,
+authentication, secure network communication, integrity protection, and
+secure application design.
 
-The major objectives of the project are:
+## Objectives
+- Implement secure client-server communication using TCP sockets.
+- Protect chat messages using authenticated encryption.
+- Demonstrate hybrid encryption using AES and RSA.
+- Secure user passwords using salted PBKDF2-HMAC-SHA256.
+- Implement authenticated public-key access and registration.
+- Prevent sender spoofing through server-side identity validation.
+- Reject invalid and offline message recipients.
+- Detect modification of encrypted message data.
+- Implement length-prefixed TCP message framing.
+- Store local chat history in encrypted form.
+- Provide a GUI for practical real-time chat demonstration.
 
-1. Develop a client-server chat application using TCP sockets.
-2. Implement secure user authentication.
-3. Store passwords using a salted password-hashing mechanism.
-4. Generate RSA key pairs for users.
-5. Store user public keys on the server.
-6. Encrypt chat messages using AES-256-GCM.
-7. Protect AES session keys using RSA-OAEP.
-8. Detect modification of encrypted messages.
-9. Prevent sender identity spoofing at the server.
-10. Provide a user-friendly graphical interface.
-11. Demonstrate practical cryptographic security concepts.
+## Features
 
----
+### Authentication
+- User registration and login.
+- Password validation.
+- Salted PBKDF2-HMAC-SHA256 password hashing.
+- Authentication required before protected operations.
+- Server-side verification of the authenticated username.
 
-## 3. Technologies Used
+### Cryptography
+- AES-256-GCM for message encryption.
+- RSA-3072 for public-key cryptography.
+- RSA-OAEP with SHA-256 for protecting AES session keys.
+- Fresh AES session key for each encrypted message.
+- Random 12-byte AES-GCM nonce for each message.
+- Authenticated encryption and tamper detection.
 
-| Component             | Technology           |
-| --------------------- | -------------------- |
-| Programming Language  | Python               |
-| GUI                   | Tkinter              |
-| Network Communication | TCP Sockets          |
-| Symmetric Encryption  | AES-256-GCM          |
-| Asymmetric Encryption | RSA-3072             |
-| RSA Padding           | OAEP with SHA-256    |
-| Password Hashing      | PBKDF2-HMAC-SHA256   |
-| Database              | SQLite               |
-| Data Format           | JSON                 |
-| TCP Framing           | 4-byte length prefix |
-| Cryptographic Library | Python cryptography  |
+### Secure Messaging
+- Real-time encrypted chat.
+- Server-routed ciphertext.
+- Recipient public-key lookup.
+- Sender identity verification.
+- Recipient existence and online-status validation.
+- Immediate display of received messages.
 
----
+### Local Message History
+- Local chat history stored separately from the network protocol.
+- Message history encrypted using AES-256-GCM.
+- Local history key derived from the user's password using
+  PBKDF2-HMAC-SHA256.
+- History database stored locally and excluded from Git.
 
-## 4. System Architecture
+### Network Security
+- TCP socket communication.
+- 4-byte length-prefixed JSON framing.
+- Maximum message-size validation.
+- Connection cleanup and online-user tracking.
+- Authenticated request handling.
 
-The application follows a client-server architecture.
+## Testing
 
-```text
+The project contains separate tests for:
+
+- AES encryption and tampering.
+- RSA encryption and decryption.
+- Hybrid encryption.
+- Message encryption.
+- TCP framing.
+- End-to-end tampering.
+- Public-key retrieval.
+- Authentication and authorization controls.
+
+## System Architecture
+
+```
                     ┌──────────────────────┐
-                    │      SQLite DB       │
+                    │       Client A       │
                     │                      │
-                    │ Users                │
-                    │ Password hashes      │
-                    │ Public keys          │
-                    └──────────▲───────────┘
+                    │  GUI                 │
+                    │  Authentication      │
+                    │  AES-256-GCM         │
+                    │  RSA-3072            │
+                    │  Local History       │
+                    └──────────┬───────────┘
                                │
+                         TCP / JSON
                                │
-┌──────────────────┐           │           ┌──────────────────┐
-│   Vindhya Client │           │           │    Siri Client  │
-│                  │           │           │                  │
-│ Tkinter GUI      │           │           │ Tkinter GUI      │
-│ RSA Private Key  │           │           │ RSA Private Key  │
-│ AES-GCM          │           │           │ AES-GCM          │
-└────────┬─────────┘           │           └────────┬─────────┘
-         │                     │                    │
-         │                     │                    │
-         │              TCP Connection             │
-         │                     │                    │
-         └─────────────────────┼────────────────────┘
+                               ▼
+                    ┌──────────────────────┐
+                    │        Server        │
+                    │                      │
+                    │  Authentication      │
+                    │  User Management     │
+                    │  Public-Key Lookup   │
+                    │  Message Routing     │
+                    │  Connection Tracking │
+                    └──────────┬───────────┘
                                │
-                     ┌─────────▼─────────┐
-                     │      Server       │
-                     │                   │
-                     │ Authentication    │
-                     │ Public-key lookup │
-                     │ Message routing   │
-                     │ Session tracking  │
-                     └───────────────────┘
+                         TCP / JSON
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │       Client B       │
+                    │                      │
+                    │  GUI                 │
+                    │  RSA Private Key    │
+                    │  AES-256-GCM         │
+                    │  Local History       │
+                    └──────────────────────┘
 ```
 
-The server routes encrypted message packets but does not need the plaintext message to perform message delivery.
+### Server responsibility
 
----
+The server handles:
+- User registration.
+- User authentication.
+- Public-key registration and retrieval.
+- Authenticated request validation.
+- Online-user tracking.
+- Encrypted-message routing.
+- TCP connection management.
 
-## 5. Hybrid Encryption Design
+The server does not need the plaintext chat message to route it.
 
-The application uses hybrid encryption because AES and RSA have different strengths.
+### Client responsibility
 
-### AES-256-GCM
+The client handles:
+- User interaction.
+- Key generation and local private-key storage.
+- Message encryption.
+- Message decryption.
+- Local encrypted history.
+- GUI rendering.
 
-AES is used for the actual chat message because symmetric encryption is efficient for larger amounts of data.
+## Cryptographic Architecture
 
-For each message:
+### 1. Password Security
 
-1. A random 256-bit AES session key is generated.
-2. A random 96-bit nonce is generated.
-3. AES-GCM encrypts the plaintext.
-4. AES-GCM also produces an authentication tag.
-5. The resulting ciphertext is sent as part of the encrypted packet.
+Passwords are not stored directly.
 
-### RSA-3072
+The application uses:
+```
+Password
+   │
+   ▼
+Random Salt
+   │
+   ▼
+PBKDF2-HMAC-SHA256
+   │
+   ▼
+Derived Password Hash
+```
+
+Current parameters:
+- Algorithm: PBKDF2-HMAC-SHA256
+- Salt size: 16 bytes
+- Derived key size: 32 bytes
+- Iterations: 600,000
+
+Password verification uses constant-time comparison through
+`hmac.compare_digest()`.
+
+### 2. AES-256-GCM
+
+AES-256-GCM is used for the actual chat message.
+
+For every message:
+```
+Plaintext
+   │
+   ▼
+Fresh 256-bit AES Key
+   │
+   ▼
+AES-256-GCM
+   │
+   ├── Random 12-byte Nonce
+   └── Ciphertext + Authentication Tag
+```
+
+AES-GCM provides both:
+- Confidentiality
+- Integrity/authentication of the encrypted data
+
+If the ciphertext or authentication data is modified, decryption fails.
+
+### 3. RSA-3072-OAEP
 
 RSA is used to protect the AES session key.
 
-The recipient's RSA public key is obtained from the server.
+The project uses:
+- RSA key size: 3072 bits
+- Public exponent: 65537
+- Padding: OAEP
+- Mask generation function: MGF1
+- Hash algorithm: SHA-256
 
-The AES session key is encrypted using:
-
-* RSA-3072
-* OAEP padding
-* SHA-256
-
-Only the recipient's RSA private key can recover the protected AES session key.
-
----
-
-## 6. Message Encryption Flow
-
-When Vindhya sends a message to Siri:
-
-```text
-Plaintext
-    │
-    ▼
-Generate random AES-256 session key
-    │
-    ▼
-AES-256-GCM encryption
-    │
-    ├── Nonce
-    └── Ciphertext + authentication tag
-    │
-    ▼
-Encrypt AES session key
-using Siri's RSA public key
-    │
-    ▼
-RSA-OAEP encrypted AES key
-    │
-    ▼
-Encrypted JSON packet
-    │
-    ▼
-TCP connection
-    │
-    ▼
-Server
-    │
-    ▼
-Siri
+The RSA operation is:
+```
+AES Session Key
+       │
+       ▼
+Recipient RSA Public Key
+       │
+       ▼
+RSA-OAEP / SHA-256
+       │
+       ▼
+Encrypted AES Session Key
 ```
 
-The server forwards the encrypted packet to the recipient.
+The recipient uses the corresponding RSA private key to recover the AES
+session key.
 
----
+## Hybrid Encryption Workflow
 
-## 7. Message Decryption Flow
+The application uses hybrid encryption because symmetric encryption is
+efficient for message data while public-key cryptography can protect the
+symmetric key.
 
-When Siri receives the message:
-
-```text
-Encrypted JSON packet
-        │
-        ▼
-Extract encrypted AES key
-        │
-        ▼
-RSA-OAEP decryption
-using Siri's private key
-        │
-        ▼
-Recover AES session key
-        │
-        ▼
-AES-256-GCM decryption
-        │
-        ▼
-Authentication verification
-        │
-        ▼
-Original plaintext message
+```
+                 SENDER
+                   │
+             Plaintext Message
+                   │
+                   ▼
+          Generate AES-256 Key
+                   │
+                   ▼
+             AES-256-GCM
+                   │
+          ┌────────┴────────┐
+          │                 │
+       Nonce           Ciphertext
+          │                 │
+          └────────┬────────┘
+                   │
+                   │
+          AES Session Key
+                   │
+                   ▼
+       Recipient RSA Public Key
+                   │
+                   ▼
+            RSA-OAEP/SHA-256
+                   │
+                   ▼
+        Encrypted AES Key
+                   │
+                   ▼
+               SERVER
+                   │
+          Routes ciphertext
+                   │
+                   ▼
+              RECIPIENT
+                   │
+       RSA Private Key
+                   │
+                   ▼
+          AES Session Key
+                   │
+                   ▼
+             AES-GCM
+                   │
+                   ▼
+          Original Message
 ```
 
-If the encrypted data has been modified, AES-GCM authentication or RSA-OAEP decryption fails.
+The server routes the encrypted fields but does not need to decrypt the
+message.
 
----
+## Network Protocol
 
-## 8. Authentication
+TCP does not preserve application-level message boundaries. Therefore,
+the application uses explicit length-prefixed JSON framing.
 
-User passwords are not stored directly.
-
-The application uses:
-
-```text
-PBKDF2-HMAC-SHA256
+```
+┌──────────────┬──────────────────────────┐
+│ 4-byte size  │      JSON payload        │
+└──────────────┴──────────────────────────┘
 ```
 
-with:
+The 4-byte header stores the payload length using network byte order.
 
-* Random 16-byte salt
-* 600,000 iterations
-* 32-byte derived hash
+The receiver:
+1. Reads exactly 4 bytes.
+2. Decodes the message length.
+3. Validates the length.
+4. Reads exactly that number of bytes.
+5. Decodes the JSON payload.
 
-The database stores the encoded salt and password hash.
+A maximum message size is enforced to prevent unbounded message
+allocation.
 
-During login:
+### Encrypted Message Format
 
-```text
-Entered password
-       │
-       ▼
-Retrieve stored salt
-       │
-       ▼
-PBKDF2-HMAC-SHA256
-       │
-       ▼
-Derived password hash
-       │
-       ▼
-Constant-time comparison
-       │
-       ▼
-Login accepted/rejected
+An encrypted message contains the following logical fields:
+
+```json
+{
+    "type": "encrypted_message",
+    "sender": "vindhya",
+    "recipient": "siri",
+    "encrypted_key": "...",
+    "nonce": "...",
+    "ciphertext": "..."
+}
 ```
 
----
+Binary cryptographic values are Base64 encoded before being placed in
+JSON.
 
-## 9. RSA Key Management
+The server routes these encrypted values after validating:
+- Sender is authenticated.
+- Sender matches the authenticated account.
+- Recipient exists.
+- Recipient has a registered public key.
+- Recipient is currently online.
+- Required encrypted fields are present.
 
-Each user has an RSA key pair.
+## Project Structure
 
-```text
-RSA Key Pair
+```
+v1/
+├── client/
+│   ├── __init__.py
+│   └── client.py
 │
-├── Public Key
-│     └── Registered with server
+├── database/
+│   ├── __init__.py
+│   ├── database.py
+│   ├── message_history.py
+│   ├── chat.db
+│   └── chat_history.db
 │
-└── Private Key
-      └── Stored locally on the client
+├── gui/
+│   ├── __init__.py
+│   └── app.py
+│
+├── security/
+│   ├── __init__.py
+│   ├── aes_utils.py
+│   ├── auth.py
+│   ├── message_crypto.py
+│   ├── network_protocol.py
+│   ├── register_public_key.py
+│   ├── rsa_utils.py
+│   │
+│   ├── test_aes.py
+│   ├── test_end_to_end.py
+│   ├── test_hybrid.py
+│   ├── test_message_crypto.py
+│   ├── test_network_protocol.py
+│   ├── test_public_key.py
+│   ├── test_rsa.py
+│   └── test_security.py
+│
+├── server/
+│   ├── __init__.py
+│   └── server.py
+│
+├── .gitignore
+└── README.md
 ```
 
-The current implementation generates:
-
-* RSA key size: 3072 bits
-* Public exponent: 65537
-* Private key format: PKCS8 PEM
-* Public key format: SubjectPublicKeyInfo PEM
-
-Private keys are not sent to the server.
-
----
-
-## 10. TCP Communication
-
-TCP is a stream protocol and does not preserve application-level message boundaries.
-
-Therefore, the application uses a 4-byte length prefix before every JSON message.
-
-```text
-┌────────────────┬──────────────────────────┐
-│ 4-byte length  │ JSON message             │
-└────────────────┴──────────────────────────┘
-```
-
-The receiver first reads the 4-byte header and determines how many bytes belong to the JSON message.
-
-This prevents problems caused by TCP packet fragmentation or multiple application messages arriving together.
-
----
-
-## 11. Security Controls
-
-The server implements several security controls.
-
-### Authentication
-
-A client must successfully authenticate before accessing authenticated operations.
-
-### Sender Verification
-
-The server associates a TCP connection with the authenticated username.
-
-For every encrypted message:
-
-```text
-authenticated username == sender
-```
-
-must be true.
-
-This prevents simple sender spoofing.
-
-### Public-Key Protection
-
-A user can only register a public key for their own authenticated account.
-
-### Recipient Validation
-
-The server verifies that:
-
-* The recipient exists.
-* The recipient has a registered public key.
-* The recipient is currently online.
-
-### Message Integrity
-
-AES-GCM detects modification of ciphertext.
-
-RSA-OAEP protects the AES session key against unauthorized recovery and detects invalid RSA ciphertext during decryption.
-
----
-
-## 12. Security Testing
-
-The project includes individual cryptographic tests and application-level security tests.
-
-### AES-GCM Test
-
-Result:
-
-```text
-AES-GCM DECRYPTION TEST: SUCCESS
-TAMPER TEST: SUCCESS
-Modified ciphertext was rejected.
-```
-
-### RSA-OAEP Test
-
-Result:
-
-```text
-RSA-OAEP TEST: SUCCESS
-The AES session key was recovered correctly.
-```
-
-### Hybrid Encryption Test
-
-Result:
-
-```text
-HYBRID ENCRYPTION TEST: SUCCESS
-TAMPER TEST: SUCCESS
-RSA TAMPER TEST: SUCCESS
-```
-
-### TCP Framing Test
-
-Result:
-
-```text
-TCP FRAMING TEST: SUCCESS
-```
-
-### Public Key Retrieval Test
-
-Result:
-
-```text
-PUBLIC KEY RETRIEVAL TEST: SUCCESS
-RSA key size: 3072 bits
-Public exponent: 65537
-```
-
-### Message Crypto Test
-
-Result:
-
-```text
-MESSAGE CRYPTO TEST: SUCCESS
-```
-
-### Application Security Test
-
-The following tests passed:
-
-```text
-WRONG PASSWORD TEST: PASS
-
-INVALID RECIPIENT TEST: PASS
-
-OFFLINE RECIPIENT TEST: PASS
-
-SENDER SPOOFING TEST: PASS
-
-UNAUTHORIZED PUBLIC KEY TEST: PASS
-
-UNAUTHENTICATED KEY TEST: PASS
-```
-
-### End-to-End Tampering Test
-
-Result:
-
-```text
-AES-GCM TAMPER TEST: PASS
-
-HYBRID CIPHERTEXT TAMPER TEST: PASS
-
-RSA ENCRYPTED-KEY TAMPER TEST: PASS
-
-END-TO-END TAMPERING TEST: SUCCESS
-```
-
----
-
-## 13. GUI Features
-
-The application provides a graphical chat interface with:
-
-* User login
-* Account registration
-* Recipient selection
-* Secure connection status
-* Message sending
-* Message receiving
-* Message timestamps
-* Encryption technology indicator
-* Logout
-* Automatic RSA key generation for new users
-
-The GUI displays:
-
-```text
-AES-256-GCM + RSA-OAEP
-```
-
-to indicate the cryptographic mechanisms used for message protection.
-
----
-
-## 14. Database
-
-SQLite is used to store user account information.
-
-The main table is:
-
-```text
-users
-```
-
-with fields:
-
-```text
-user_id
-username
-password_hash
-public_key
-created_at
-```
-
-The database does not store plaintext passwords.
-
----
-
-## 15. Project Security Model
-
-The application provides client-side encryption of chat messages.
-
-The server receives and routes encrypted message packets.
-
-The server does not perform AES decryption of chat messages.
-
-However, the current project should not be described as a fully verified end-to-end encryption system.
-
-The server currently distributes public keys. Without an independent public-key authentication mechanism such as certificate validation, verified fingerprints, or a trusted key directory, a malicious or compromised server could potentially replace a recipient's public key.
-
-Therefore, the most accurate description is:
-
-> "A client-side encrypted chat application using hybrid AES-GCM and RSA-OAEP encryption with server-based message routing."
-
----
-
-## 16. Current Security Limitations
-
-### 1. Public-key trust
-
-Public keys are obtained from the server.
-
-A stronger production design would authenticate public keys using:
-
-* Key fingerprints
-* Certificates
-* A trusted key directory
-* User verification
-
-### 2. Private-key storage
-
-Private RSA keys are currently stored locally as PEM files without encryption.
-
-A production implementation should protect private keys using:
-
-* OS key stores
-* Hardware-backed key storage
-* Password-protected private-key files
-
-### 3. Transport security
-
-The demonstration server uses TCP directly.
-
-For deployment over an untrusted network, TLS should be added to protect:
-
-* Login credentials
-* Public-key requests
-* Metadata
-* Network traffic
-
-The cryptographic message layer and TLS would provide different security properties.
-
-### 4. Message persistence
-
-The current application focuses on real-time messaging and does not provide persistent encrypted chat history.
-
----
-
-## 17. Future Enhancements
-
-Possible future improvements include:
-
-1. TLS-secured client-server communication.
-2. Verified public-key fingerprints.
-3. Encrypted private-key storage.
-4. Secure encrypted message history.
-5. Group chat.
-6. File encryption and secure file transfer.
-7. Multi-factor authentication.
-8. Online/offline presence management.
-9. Message delivery status.
-10. Stronger identity verification.
-11. Key rotation.
-12. Forward secrecy using modern ephemeral key-exchange mechanisms.
-
----
-
-## 18. How to Run the Application
+### Generated/local files
+
+The following files are local runtime data and should not be committed:
+- `database/chat.db`
+- `database/chat_history.db`
+- `security/keys/*.pem`
+
+## Technologies Used
+
+| Technology | Purpose |
+|------------|---------|
+| Python | Application development |
+| Tkinter | Desktop GUI |
+| TCP sockets | Client-server communication |
+| JSON | Application protocol payload |
+| SQLite | User and local-history storage |
+| cryptography | Cryptographic operations |
+| AES-256-GCM | Message encryption |
+| RSA-3072 | Public-key encryption |
+| RSA-OAEP | AES-key protection |
+| PBKDF2-HMAC-SHA256 | Password/key derivation |
+| Git | Version control |
+
+### Requirements
+
+Recommended environment used during development:
+- Windows
+- Python 3.13
+- cryptography 50.0.1
+
+The project primarily uses Python standard-library modules plus the
+`cryptography` package.
+
+## Installation
+
+1. Open the project directory
+   ```bash
+   cd C:\Users\vindh\Desktop\projects\EncryptedChat\v1
+   ```
+2. Install the cryptography dependency
+   ```bash
+   python -m pip install cryptography
+   ```
+3. Verify the installation
+   ```bash
+   python -c "import cryptography; print(cryptography.__version__)"
+   ```
+
+## Running the Application
 
 ### Start the server
 
-Open Command Prompt:
-
-```cmd
-cd C:\Users\vindh\Desktop\projects\EncryptedChat
+From the project root:
+```bash
 python -m server.server
 ```
 
 Expected output:
-
-```text
+```
 Server started on 127.0.0.1:5000
 Waiting for clients...
 ```
 
-### Start the GUI
+The current development configuration binds the server to:
+`127.0.0.1:5000`
 
-Open another Command Prompt:
+### Start the GUI client
 
-```cmd
-cd C:\Users\vindh\Desktop\projects\EncryptedChat
+Open another PowerShell window:
+```bash
+cd C:\Users\vindh\Desktop\projects\EncryptedChat\v1
 python -m gui.app
 ```
 
-### Register
+Start multiple GUI clients if you want to demonstrate communication
+between different users.
 
-Select:
+### User Accounts
 
-```text
-Create New Account
-```
+Example development accounts used during testing include:
+- Username: `vindhya` / Password: `vindhya123`
+- Username: `siri` / Password: `siri123`
+- Username: `nithya`
 
-Enter a username and password.
+These are development/demo credentials. Do not use these credentials in
+a production deployment.
 
-### Login
+### Key Management
 
-Use the registered credentials.
+RSA key pairs are generated and stored locally under:
+`security/keys/`
 
-The application automatically generates an RSA key pair for users who do not already have one and registers the public key with the authenticated server session.
+The key files follow this pattern:
+- `<username>_private.pem`
+- `<username>_public.pem`
 
-### Start a chat
+Example:
+- `vindhya_private.pem`
+- `vindhya_public.pem`
+- `siri_private.pem`
+- `siri_public.pem`
 
-Enter the recipient username and click:
+#### Important security note
+Private keys are currently stored as unencrypted PEM files for this
+student-project implementation.
 
-```text
-Connect
-```
+In a production system, private keys should be protected using an
+operating-system credential store, hardware-backed key storage, or
+another appropriate secure key-management mechanism.
 
-Then enter a message and click:
+## Database
 
-```text
-Send
-```
+The application uses SQLite for local application data.
 
----
+### User database
+`database/chat.db`
 
-## 19. Security Test Commands
+The user database contains information such as:
+- User ID
+- Username
+- Password hash
+- Public key
+- Account creation time
+
+### Local message history
+`database/chat_history.db`
+
+Local history is encrypted before storage.
+
+The local history encryption key is derived from the user's password
+using PBKDF2-HMAC-SHA256 rather than storing the password itself.
+
+## Security Controls
+
+The current server implements the following controls.
+
+### Authentication required
+Protected operations require successful authentication.
+Unauthenticated requests are rejected.
+
+### Sender validation
+The `sender` field of an encrypted message must match the authenticated
+account.
+This prevents an authenticated client from claiming to send a message as
+another user.
+
+### Recipient validation
+The server verifies that the recipient:
+- Exists.
+- Has a registered public key.
+- Is currently online.
+
+### Public-key authorization
+Public-key registration is tied to the authenticated username.
+A user cannot register a public key on behalf of another authenticated
+account.
+
+### Public-key access control
+Public-key retrieval requires authentication.
+
+### Tamper detection
+AES-GCM authentication causes modified encrypted data to be rejected
+during decryption.
+The project tests both:
+- Ciphertext modification.
+- RSA-encrypted AES-key modification.
+
+### TCP framing validation
+The network protocol validates message lengths and reads complete framed
+messages before decoding JSON.
+
+## Testing
+
+Tests are organized under:
+`security/`
 
 ### AES test
-
-```cmd
+```bash
 python -m security.test_aes
 ```
+Tests:
+- AES-GCM encryption/decryption.
+- Ciphertext tampering detection.
 
 ### RSA test
-
-```cmd
+```bash
 python -m security.test_rsa
 ```
+Tests:
+- RSA key generation.
+- RSA-OAEP encryption/decryption.
+- AES session-key protection.
 
 ### Hybrid encryption test
-
-```cmd
+```bash
 python -m security.test_hybrid
 ```
+Tests:
+- AES + RSA hybrid encryption.
+- Ciphertext tampering.
+- RSA encrypted-key tampering.
 
 ### Message crypto test
-
-```cmd
+```bash
 python -m security.test_message_crypto
 ```
+Tests the complete message-level encryption and decryption functions.
 
 ### TCP framing test
-
-```cmd
-python -m security.test_tcp_framing
+```bash
+python -m security.test_network_protocol
 ```
+Tests the 4-byte length-prefixed JSON protocol.
 
-### Public-key retrieval test
-
-```cmd
-python -m security.test_public_key
-```
-
-### Application security tests
-
-```cmd
-python -m security.test_security
-```
-
-### End-to-end tampering tests
-
-```cmd
+### End-to-end tampering test
+```bash
 python -m security.test_end_to_end
 ```
+Tests whether modified encrypted data is rejected.
 
----
+### Public-key retrieval test
+Start the server first:
+```bash
+python -m server.server
+```
+Then in another terminal:
+```bash
+python -m security.test_public_key
+```
+The test authenticates a user and retrieves another user's public key.
 
-## 20. Conclusion
+### Security control test
+Start the server first:
+```bash
+python -m server.server
+```
+Then:
+```bash
+python -m security.test_security
+```
+For the offline-recipient test, the specified recipient must not be
+logged into the application.
 
-The Encrypted Chat Application demonstrates the practical use of cryptography and network security concepts in a real-time messaging system.
+## Verified Test Results
 
-The project combines:
+The implemented security tests were executed successfully during
+development.
+
+| Test | Result |
+|------|--------|
+| AES-GCM encryption/decryption | PASS |
+| AES-GCM tampering | PASS |
+| RSA-OAEP | PASS |
+| Hybrid encryption | PASS |
+| Hybrid ciphertext tampering | PASS |
+| RSA encrypted-key tampering | PASS |
+| Message crypto | PASS |
+| TCP framing | PASS |
+| End-to-end tampering | PASS |
+| Wrong password | PASS |
+| Invalid recipient | PASS |
+| Offline recipient | PASS |
+| Sender spoofing | PASS |
+| Unauthorized public-key registration | PASS |
+| Unauthenticated public-key access | PASS |
+| Public-key retrieval | PASS |
 
 ```text
-Authentication
-     +
-PBKDF2 Password Hashing
-     +
-RSA-3072
-     +
-RSA-OAEP
-     +
-AES-256-GCM
-     +
-TCP Sockets
-     +
-TCP Message Framing
-     +
-SQLite
-     +
-Tkinter GUI
+Security suite result
+========================================
+SECURITY TEST SUITE: SUCCESS
+All security controls passed.
+========================================
+
+Public-key retrieval result
+Public key retrieved successfully.
+RSA key size: 3072 bits
+Public exponent: 65537
+
+PUBLIC KEY RETRIEVAL TEST: SUCCESS
 ```
 
-The implementation successfully provides encrypted message transmission, authentication, integrity protection, RSA-based session-key protection, sender validation, and security testing.
+## Security Considerations and Limitations
 
-The project also identifies important security limitations and possible improvements required for production-grade secure messaging.
+This project is designed as an academic cybersecurity implementation and
+demonstration. It should not be treated as a production-ready secure
+messaging platform.
+
+1. **Public-key trust**
+   Public keys are distributed by the authenticated server.
+   There is currently no independent fingerprint verification, certificate
+   authority, or out-of-band key verification mechanism.
+   Therefore, a compromised or malicious server could potentially provide a
+   different public key for a recipient.
+
+2. **Local private-key protection**
+   Private RSA keys are currently stored as unencrypted PEM files.
+   Production software should provide stronger private-key protection.
+
+3. **Localhost deployment**
+   The current server configuration uses:
+   `127.0.0.1:5000`
+   The current implementation is therefore primarily suitable for local
+   demonstration and controlled testing.
+
+4. **Transport security**
+   The custom TCP protocol provides framing and application-level
+   encryption, but it is not a replacement for a mature transport-security
+   protocol such as TLS.
+
+5. **No offline message queue**
+   The current server rejects encrypted messages when the recipient is
+   offline.
+   Persistent server-side message queuing is not part of the current
+   implementation.
+
+6. **Key rotation**
+   The current implementation does not provide a complete automated
+   public-key rotation and revocation system.
+
+## Future Enhancements
+
+Possible future improvements include:
+- TLS for transport protection.
+- Verified public-key fingerprints.
+- Key rotation and revocation.
+- Encrypted private-key storage.
+- Secure operating-system key stores.
+- Multi-factor authentication.
+- Rate limiting and account lockout.
+- Offline encrypted message queues.
+- Message delivery acknowledgements.
+- Forward secrecy using an ephemeral key-exchange mechanism.
+- Digital signatures for stronger sender authentication.
+- Security audit logging.
+- Production-grade deployment configuration.
+- Secure remote deployment instead of localhost-only operation.
+
+## Viva-Ready Explanation
+
+**What is the main purpose of the project?**
+The project demonstrates how cryptographic algorithms can be combined
+with network programming to build a secure chat application. Messages
+are encrypted on the client before being sent to the server.
+
+**Why is AES used?**
+AES is efficient for encrypting the actual message data. AES-256-GCM
+additionally provides authentication and tamper detection.
+
+**Why is RSA used?**
+RSA is used to protect the AES session key using the recipient's public
+key. This allows the sender to securely transfer the symmetric key
+material without sending it in plaintext.
+
+**Why use hybrid encryption?**
+AES is efficient for bulk data, while RSA provides public-key encryption
+for key protection. Combining them provides a practical approach to
+secure message exchange.
+
+**Why AES-GCM instead of plain AES?**
+AES-GCM provides authenticated encryption. It protects confidentiality
+and detects unauthorized modification of the encrypted data.
+
+**What happens if someone changes the ciphertext?**
+AES-GCM authentication fails and the recipient rejects the modified
+ciphertext during decryption.
+
+**Why use RSA-OAEP?**
+OAEP provides randomized padding for RSA encryption and is used with
+SHA-256 in this project.
+
+**Why is TCP framing required?**
+TCP provides a byte stream rather than application-level message
+boundaries. The project therefore adds a 4-byte length prefix before
+every JSON message.
+
+**Can the server read the chat plaintext?**
+The intended message-routing path does not require the server to receive
+plaintext. The sender encrypts the message before routing, and the
+recipient decrypts it locally.
+
+**Is this fully end-to-end encrypted?**
+Not in the strongest, independently verified sense. The message is
+encrypted on the client and routed as ciphertext, but public keys are
+currently obtained through the server without independent fingerprint
+verification.
+
+**How are passwords stored?**
+Passwords are processed using salted PBKDF2-HMAC-SHA256 with 600,000
+iterations and are not stored as plaintext.
+
+**What happens when the recipient is offline?**
+The current server rejects the encrypted message with:
+`Recipient is not online.`
+
+**How is sender spoofing prevented?**
+The server compares the sender field in a request with the username
+authenticated on that connection. A mismatch is rejected.
+
+### Example Message Flow
+
+Suppose vindhya sends:
+`Hello Siri!`
+to siri.
+
+**Sender**
+```
+"Hello Siri!"
+      │
+      ▼
+Generate AES-256 session key
+      │
+      ▼
+AES-256-GCM encryption
+      │
+      ├── nonce
+      └── ciphertext
+      │
+      ▼
+Encrypt AES key using Siri's RSA public key
+      │
+      ▼
+Send encrypted message to server
+```
+
+**Server**
+```
+Authenticate Vindhya
+      │
+      ▼
+Validate sender
+      │
+      ▼
+Validate recipient
+      │
+      ▼
+Check recipient public key
+      │
+      ▼
+Check recipient is online
+      │
+      ▼
+Route encrypted message
+```
+
+**Recipient**
+```
+Receive encrypted message
+      │
+      ▼
+RSA private-key decryption
+      │
+      ▼
+Recover AES session key
+      │
+      ▼
+AES-256-GCM decryption
+      │
+      ▼
+"Hello Siri!"
+```
+
+## Academic Relevance
+
+The project demonstrates several core Cryptography and Network Security
+concepts:
+- Symmetric cryptography.
+- Asymmetric cryptography.
+- Hybrid encryption.
+- Authenticated encryption.
+- Password hashing and key derivation.
+- Public-key management.
+- Authentication and authorization.
+- Integrity protection.
+- TCP/IP socket communication.
+- Secure protocol design.
+- Tamper detection.
+- Security testing.
+
+The project idea aligns with the Encrypted Chat Application category
+using AES, RSA, and sockets described in the project's Cryptography and
+Network Security project-ideas material.
+
+## Git and Security
+
+The `.gitignore` excludes local databases and private keys:
+
+```gitignore
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local databases
+database/*.db
+
+# Local RSA keys
+security/keys/*.pem
+```
+
+Never commit private RSA keys, local databases containing sensitive
+information, or real production credentials to a public repository.
+
+## Project Status
+
+- Implementation: Complete for the current academic scope
+- Security testing: Passed
+- GUI: Functional
+- Real-time messaging: Functional
+- Cryptographic validation: Passed
+- Server authentication controls: Passed
+- Tamper detection: Passed
+- Public-key retrieval: Passed
+
+## Author
+
+**E. Vindhya Lekhana**
+B.Tech Computer Science Engineering
+Project: Encrypted Chat Application
+
+## Disclaimer
+
+This project is an academic implementation created for learning and
+demonstrating cryptography, network security, authentication, and secure
+application development concepts. It has not been independently security
+audited and should not be used as a production secure-messaging system
+without further security engineering, testing, and review.

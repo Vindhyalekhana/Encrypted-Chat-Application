@@ -76,11 +76,8 @@ def get_user(username):
 
     finally:
         connection.close()
-
-
 def update_public_key(username, public_key):
     connection = get_connection()
-
     try:
         cursor = connection.execute(
             """
@@ -90,10 +87,29 @@ def update_public_key(username, public_key):
             """,
             (public_key, username)
         )
-
         connection.commit()
-
         return cursor.rowcount == 1
+    finally:
+        connection.close()
+
+
+def get_all_users():
+    connection = get_connection()
+
+    try:
+        cursor = connection.execute(
+            """
+            SELECT
+                user_id,
+                username,
+                public_key,
+                created_at
+            FROM users
+            ORDER BY username COLLATE NOCASE
+            """
+        )
+
+        return cursor.fetchall()
 
     finally:
         connection.close()

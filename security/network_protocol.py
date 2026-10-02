@@ -1,9 +1,18 @@
 import json
 import struct
-
+import uuid
 
 HEADER_SIZE = 4
 MAX_MESSAGE_SIZE = 10 * 1024 * 1024
+
+
+def create_request(request_type, **data):
+    request = {
+        "type": request_type,
+        "request_id": str(uuid.uuid4())
+    }
+    request.update(data)
+    return request
 
 
 def send_json(sock, data):
@@ -23,7 +32,9 @@ def receive_exact(sock, size):
         chunk = sock.recv(size - len(data))
 
         if not chunk:
-            raise ConnectionError("Connection closed by the peer.")
+            raise ConnectionError(
+                "Connection closed by the peer."
+            )
 
         data.extend(chunk)
 
@@ -31,12 +42,29 @@ def receive_exact(sock, size):
 
 
 def receive_json(sock):
-    header = receive_exact(sock, HEADER_SIZE)
-    message_length = struct.unpack("!I", header)[0]
+    header = receive_exact(
+        sock,
+        HEADER_SIZE
+    )
 
-    if message_length <= 0 or message_length > MAX_MESSAGE_SIZE:
-        raise ValueError("Invalid message size.")
+    message_length = struct.unpack(
+        "!I",
+        header
+    )[0]
 
-    message = receive_exact(sock, message_length)
+    if (
+        message_length <= 0
+        or message_length > MAX_MESSAGE_SIZE
+    ):
+        raise ValueError(
+            "Invalid message size."
+        )
 
-    return json.loads(message.decode("utf-8"))
+    message = receive_exact(
+        sock,
+        message_length
+    )
+
+    return json.loads(
+        message.decode("utf-8")
+    )

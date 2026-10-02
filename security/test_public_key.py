@@ -9,24 +9,57 @@ HOST = "127.0.0.1"
 PORT = 5000
 
 
-def get_public_key(username):
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+def authenticate(client_socket, username, password):
+    send_json(
+        client_socket,
+        {
+            "type": "login",
+            "username": username,
+            "password": password
+        }
+    )
+
+    response = receive_json(client_socket)
+
+    if response.get("status") != "success":
+        raise RuntimeError(
+            f"Login failed: {response.get('message')}"
+        )
+
+
+def get_public_key(
+    authenticated_username,
+    password,
+    target_username
+):
+    client_socket = socket.socket(
+        socket.AF_INET,
+        socket.SOCK_STREAM
+    )
 
     try:
         client_socket.connect((HOST, PORT))
+
+        authenticate(
+            client_socket,
+            authenticated_username,
+            password
+        )
 
         send_json(
             client_socket,
             {
                 "type": "get_public_key",
-                "username": username
+                "username": target_username
             }
         )
 
         response = receive_json(client_socket)
 
         if response.get("status") != "success":
-            print(f"Server: {response.get('message')}")
+            print(
+                f"Server: {response.get('message')}"
+            )
             return None
 
         public_key = serialization.load_pem_public_key(
@@ -40,14 +73,32 @@ def get_public_key(username):
 
 
 def main():
-    username = input("Enter username whose public key should be retrieved: ").strip()
+    authenticated_username = input(
+        "Enter login username: "
+    ).strip()
 
-    if not username:
-        print("Username cannot be empty.")
+    password = input(
+        "Enter login password: "
+    ).strip()
+
+    target_username = input(
+        "Enter username whose public key should be retrieved: "
+    ).strip()
+
+    if (
+        not authenticated_username
+        or not password
+        or not target_username
+    ):
+        print("Username, password, and target username are required.")
         return
 
     try:
-        public_key = get_public_key(username)
+        public_key = get_public_key(
+            authenticated_username,
+            password,
+            target_username
+        )
 
         if public_key is None:
             print("PUBLIC KEY RETRIEVAL: FAILED")
@@ -56,12 +107,21 @@ def main():
         public_numbers = public_key.public_numbers()
 
         print("Public key retrieved successfully.")
-        print(f"RSA key size: {public_key.key_size} bits")
-        print(f"Public exponent: {public_numbers.e}")
+        print(
+            f"RSA key size: {public_key.key_size} bits"
+        )
+        print(
+            f"Public exponent: {public_numbers.e}"
+        )
 
         print("\nPUBLIC KEY RETRIEVAL TEST: SUCCESS")
 
-    except (ConnectionError, OSError, ValueError) as error:
+    except (
+        ConnectionError,
+        OSError,
+        ValueError,
+        RuntimeError
+    ) as error:
         print(f"Connection error: {error}")
         print("PUBLIC KEY RETRIEVAL TEST: FAILED")
 

@@ -23,13 +23,42 @@ connected_clients = {}
 clients_lock = threading.Lock()
 
 
-def send_error(connection, message):
+def send_response(
+    connection,
+    request,
+    status,
+    message,
+    **data
+):
+    response = {
+        "type": "response",
+        "status": status,
+        "message": message
+    }
+
+    request_id = request.get("request_id")
+
+    if request_id:
+        response["request_id"] = request_id
+
+    response.update(data)
+
     send_json(
         connection,
-        {
-            "status": "error",
-            "message": message
-        }
+        response
+    )
+
+
+def send_error(
+    connection,
+    request,
+    message
+):
+    send_response(
+        connection,
+        request,
+        "error",
+        message
     )
 
 
@@ -58,13 +87,17 @@ def validate_public_key(public_key_text):
         return False
 
 
-def handle_register(connection, request):
+def handle_register(
+    connection,
+    request
+):
     username = request.get("username")
     password = request.get("password")
 
     if not username or not password:
         send_error(
             connection,
+            request,
             "Username and password are required."
         )
         return
@@ -72,32 +105,40 @@ def handle_register(connection, request):
     if get_user(username):
         send_error(
             connection,
+            request,
             "Username already exists."
         )
         return
 
-    if create_user(username, password):
-        send_json(
+    if create_user(
+        username,
+        password
+    ):
+        send_response(
             connection,
-            {
-                "status": "success",
-                "message": "Registration successful."
-            }
+            request,
+            "success",
+            "Registration successful."
         )
     else:
         send_error(
             connection,
+            request,
             "Registration failed."
         )
 
 
-def authenticate_user(connection, request):
+def authenticate_user(
+    connection,
+    request
+):
     username = request.get("username")
     password = request.get("password")
 
     if not username or not password:
         send_error(
             connection,
+            request,
             "Username and password are required."
         )
         return None
@@ -107,6 +148,7 @@ def authenticate_user(connection, request):
     if not user:
         send_error(
             connection,
+            request,
             "Invalid username or password."
         )
         return None
@@ -117,27 +159,34 @@ def authenticate_user(connection, request):
     ):
         send_error(
             connection,
+            request,
             "Invalid username or password."
         )
         return None
 
-    send_json(
+    send_response(
         connection,
-        {
-            "status": "success",
-            "message": "Login successful.",
-            "username": username,
-            "has_public_key": bool(user["public_key"])
-        }
+        request,
+        "success",
+        "Login successful.",
+        username=username,
+        has_public_key=bool(
+            user["public_key"]
+        )
     )
 
     return username
 
 
-def handle_public_key(connection, request, authenticated_username):
+def handle_public_key(
+    connection,
+    request,
+    authenticated_username
+):
     if not authenticated_username:
         send_error(
             connection,
+            request,
             "Authentication is required before registering a public key."
         )
         return
@@ -148,6 +197,7 @@ def handle_public_key(connection, request, authenticated_username):
     if not username or not public_key:
         send_error(
             connection,
+            request,
             "Username and public key are required."
         )
         return
@@ -155,6 +205,7 @@ def handle_public_key(connection, request, authenticated_username):
     if username != authenticated_username:
         send_error(
             connection,
+            request,
             "Public key registration does not match the authenticated user."
         )
         return
@@ -162,6 +213,7 @@ def handle_public_key(connection, request, authenticated_username):
     if not validate_public_key(public_key):
         send_error(
             connection,
+            request,
             "Invalid RSA public key."
         )
         return
@@ -170,26 +222,30 @@ def handle_public_key(connection, request, authenticated_username):
         authenticated_username,
         public_key
     ):
-        send_json(
+        send_response(
             connection,
-            {
-                "status": "success",
-                "message": "Public key stored successfully."
-            }
+            request,
+            "success",
+            "Public key stored successfully."
         )
     else:
         send_error(
             connection,
+            request,
             "Failed to store public key."
         )
 
 
-def handle_get_public_key(connection, request):
+def handle_get_public_key(
+    connection,
+    request
+):
     username = request.get("username")
 
     if not username:
         send_error(
             connection,
+            request,
             "Username is required."
         )
         return
@@ -199,6 +255,7 @@ def handle_get_public_key(connection, request):
     if not user:
         send_error(
             connection,
+            request,
             "User not found."
         )
         return
@@ -206,18 +263,64 @@ def handle_get_public_key(connection, request):
     if not user["public_key"]:
         send_error(
             connection,
+            request,
             "Public key is not registered for this user."
         )
         return
 
-    send_json(
+    send_response(
         connection,
-        {
-            "status": "success",
-            "message": "Public key retrieved successfully.",
-            "username": username,
-            "public_key": user["public_key"]
-        }
+        request,
+        "success",
+        "Public key retrieved successfully.",
+        username=username,
+        public_key=user["public_key"]
+    )
+
+
+def handle_list_users(
+    connection,
+    request
+):
+    cursor_users = []
+
+    from database.database import get_connection
+
+    database_connection = get_connection()
+
+    try:
+        rows = database_connection.execute(
+            """
+            SELECT username
+            FROM users
+            ORDER BY username COLLATE NOCASE
+            """
+        ).fetchall()
+
+        with clients_lock:
+            online_users = set(
+                connected_clients.keys()
+            )
+
+        for row in rows:
+            username = row["username"]
+
+            cursor_users.append(
+                {
+                    "username": username,
+                    "online": username in online_users
+                }
+            )
+
+    finally:
+        database_connection.close()
+
+    send_response(
+        connection,
+        request,
+        "success",
+        "User list retrieved successfully.",
+        users=cursor_users
     )
 
 
@@ -229,13 +332,22 @@ def route_encrypted_message(
     recipient = request.get("recipient")
 
     if not sender or not recipient:
-        return False, "Sender and recipient are required."
+        return (
+            False,
+            "Sender and recipient are required."
+        )
 
     if sender != authenticated_username:
-        return False, "Sender does not match the authenticated user."
+        return (
+            False,
+            "Sender does not match the authenticated user."
+        )
 
     if sender == recipient:
-        return False, "Sender and recipient cannot be the same."
+        return (
+            False,
+            "Sender and recipient cannot be the same."
+        )
 
     required_fields = [
         "encrypted_key",
@@ -245,25 +357,35 @@ def route_encrypted_message(
 
     for field in required_fields:
         if not request.get(field):
-            return False, (
+            return (
+                False,
                 f"Missing encrypted message field: {field}"
             )
 
     recipient_user = get_user(recipient)
 
     if not recipient_user:
-        return False, "Recipient does not exist."
+        return (
+            False,
+            "Recipient does not exist."
+        )
 
     if not recipient_user["public_key"]:
-        return False, "Recipient has no registered public key."
+        return (
+            False,
+            "Recipient has no registered public key."
+        )
 
     with clients_lock:
-        recipient_connection = connected_clients.get(
-            recipient
+        recipient_connection = (
+            connected_clients.get(recipient)
         )
 
     if not recipient_connection:
-        return False, "Recipient is not online."
+        return (
+            False,
+            "Recipient is not online."
+        )
 
     try:
         send_json(
@@ -271,19 +393,28 @@ def route_encrypted_message(
             request
         )
 
-        return True, "Encrypted message delivered."
+        return (
+            True,
+            "Encrypted message delivered."
+        )
 
     except (
         ConnectionError,
         OSError
     ):
         with clients_lock:
-            if connected_clients.get(
-                recipient
-            ) == recipient_connection:
-                del connected_clients[recipient]
+            if (
+                connected_clients.get(recipient)
+                == recipient_connection
+            ):
+                del connected_clients[
+                    recipient
+                ]
 
-        return False, "Failed to deliver encrypted message."
+        return (
+            False,
+            "Failed to deliver encrypted message."
+        )
 
 
 def handle_authenticated_request(
@@ -306,32 +437,37 @@ def handle_authenticated_request(
             request
         )
 
+    elif request_type == "list_users":
+        handle_list_users(
+            connection,
+            request
+        )
+
     elif request_type == "encrypted_message":
         success, message = route_encrypted_message(
             request,
             authenticated_username
         )
 
-        send_json(
+        send_response(
             connection,
-            {
-                "status": (
-                    "success"
-                    if success
-                    else "error"
-                ),
-                "message": message
-            }
+            request,
+            "success" if success else "error",
+            message
         )
 
     else:
         send_error(
             connection,
+            request,
             "Unknown request type."
         )
 
 
-def handle_client(connection, address):
+def handle_client(
+    connection,
+    address
+):
     authenticated_username = None
 
     print(
@@ -357,6 +493,7 @@ def handle_client(connection, address):
         if request_type != "login":
             send_error(
                 connection,
+                first_request,
                 "Login is required."
             )
             return
@@ -463,6 +600,7 @@ def start_server():
         f"Server started on "
         f"{HOST}:{PORT}"
     )
+
     print(
         "Waiting for clients..."
     )

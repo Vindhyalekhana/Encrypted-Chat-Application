@@ -1,4 +1,4 @@
-from aes_utils import (
+from security.aes_utils import (
     generate_session_key,
     encrypt_message,
     decrypt_message
@@ -6,12 +6,12 @@ from aes_utils import (
 
 
 def main():
-    message = "Hello Siri! This is a secret message."
-
     key = generate_session_key()
 
+    original_message = "AES-256-GCM security test"
+
     nonce, ciphertext = encrypt_message(
-        message,
+        original_message,
         key
     )
 
@@ -21,24 +21,14 @@ def main():
         key
     )
 
-    print("Original message:")
-    print(message)
-
-    print("\nEncrypted ciphertext:")
-    print(ciphertext.hex())
-
-    print("\nDecrypted message:")
-    print(decrypted_message)
-
-    if message == decrypted_message:
-        print("\nAES-GCM DECRYPTION TEST: SUCCESS")
+    if decrypted_message == original_message:
+        print("AES-GCM DECRYPTION TEST: PASS")
     else:
-        print("\nAES-GCM DECRYPTION TEST: FAILED")
+        print("AES-GCM DECRYPTION TEST: FAIL")
+        return
 
     tampered_ciphertext = bytearray(ciphertext)
     tampered_ciphertext[0] ^= 1
-
-    print("\nTesting modified ciphertext...")
 
     try:
         decrypt_message(
@@ -47,11 +37,12 @@ def main():
             key
         )
 
-        print("TAMPER TEST: FAILED")
+        print("AES-GCM TAMPER TEST: FAIL")
 
     except Exception:
-        print("TAMPER TEST: SUCCESS")
-        print("Modified ciphertext was rejected.")
+        print("AES-GCM TAMPER TEST: PASS")
+
+    print("AES-256-GCM TEST: SUCCESS")
 
 
 if __name__ == "__main__":

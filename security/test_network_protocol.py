@@ -1,7 +1,7 @@
 import socket
 import threading
 
-from network_protocol import send_json, receive_json
+from security.network_protocol import send_json, receive_json
 
 
 def server_test(server_socket):
