@@ -12,3 +12,8 @@ security/keys/*.pem
 
 # Local backup files
 gui/app_backup.py
+# Web chat local database and Python cache
+web_backend/web_chat.db
+web_backend/__pycache__/
+__pycache__/
+*.py[cod]

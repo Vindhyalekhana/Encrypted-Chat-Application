@@ -1,0 +1,14 @@
+@'
+services:
+  - type: web
+    name: encrypted-chat-backend
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r web_backend/requirements.txt
+    startCommand: uvicorn web_backend.app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: CHAT_TOKEN_SECRET
+        generateValue: true
+      - key: FRONTEND_ORIGINS
+        value: https://your-project.vercel.app
+'@ | Set-Content -Encoding utf8 render.yaml
